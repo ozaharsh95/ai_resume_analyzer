@@ -1,11 +1,11 @@
 import type { Route } from "./+types/home";
 import { usePuterStore } from "~/lib/puter";
 import { useEffect } from "react";
-import { useLocation } from "react-router";
 import { useNavigate } from "react-router";
 import Navbar from "~/components/Navbar";
 import { resumes } from "~/constants";
 import ResumeCard from "~/components/ResumeCard";
+
 export function meta({}: Route.MetaArgs) {
   return [
     { title: "AURA - AI Resume Scanner" },
