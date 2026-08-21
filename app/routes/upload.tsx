@@ -6,6 +6,17 @@ import { prepareInstructions } from "~/constants";
 import { convertPdfToImage } from "~/lib/pdf2img";
 import { usePuterStore } from "~/lib/puter";
 import { generateUUID } from "~/lib/utils";
+import type { Route } from "./+types/upload";
+
+export const meta: Route.MetaFunction = () => {
+  return [
+    { title: "AURA | Upload" },
+    {
+      name: "description",
+      content: "Upload your resume for an ATS score and improvement",
+    },
+  ];
+};
 
 const Upload = () => {
   const { auth, isLoading, fs, ai, kv } = usePuterStore();
