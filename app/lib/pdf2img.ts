@@ -4,8 +4,17 @@ export interface PdfConversionResult {
   error?: string;
 }
 
+export interface MultiPagePdfConversionResult {
+  pages: Array<{
+    pageNumber: number;
+    imageUrl: string;
+    file: File;
+  }>;
+  totalPages: number;
+  error?: string;
+}
+
 let pdfjsLib: any = null;
-let isLoading = false;
 let loadPromise: Promise<any> | null = null;
 
 async function loadPdfJs() {
@@ -23,61 +32,87 @@ async function loadPdfJs() {
   return loadPromise;
 }
 
-export async function convertPdfToImage(
+export async function convertPdfToImages(
   file: File,
-): Promise<PdfConversionResult> {
+  maxPages: number = 5,
+): Promise<MultiPagePdfConversionResult> {
   try {
     const lib = await loadPdfJs();
-
     const arrayBuffer = await file.arrayBuffer();
     const pdf = await lib.getDocument({ data: arrayBuffer }).promise;
-    const page = await pdf.getPage(1);
+    const totalPages = pdf.numPages;
+    const pagesToConvert = Math.min(totalPages, maxPages);
 
-    const viewport = page.getViewport({ scale: 4 });
-    const canvas = document.createElement("canvas");
-    const context = canvas.getContext("2d");
+    const pages: Array<{
+      pageNumber: number;
+      imageUrl: string;
+      file: File;
+    }> = [];
 
-    canvas.width = viewport.width;
-    canvas.height = viewport.height;
+    const baseName = file.name.replace(/\.pdf$/i, "");
 
-    if (context) {
-      context.imageSmoothingEnabled = true;
-      context.imageSmoothingQuality = "high";
+    for (let pageNum = 1; pageNum <= pagesToConvert; pageNum++) {
+      const page = await pdf.getPage(pageNum);
+      const viewport = page.getViewport({ scale: 3.5 }); // High resolution for crisp UI & OCR
+      const canvas = document.createElement("canvas");
+      const context = canvas.getContext("2d");
+
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+
+      if (context) {
+        context.imageSmoothingEnabled = true;
+        context.imageSmoothingQuality = "high";
+      }
+
+      await page.render({ canvasContext: context!, viewport }).promise;
+
+      const pageBlob = await new Promise<Blob | null>((resolve) => {
+        canvas.toBlob((blob) => resolve(blob), "image/jpeg", 0.95);
+      });
+
+      if (pageBlob) {
+        const pageFile = new File(
+          [pageBlob],
+          `${baseName}_page_${pageNum}.jpg`,
+          { type: "image/jpeg" },
+        );
+        pages.push({
+          pageNumber: pageNum,
+          imageUrl: URL.createObjectURL(pageBlob),
+          file: pageFile,
+        });
+      }
     }
 
-    await page.render({ canvasContext: context!, viewport }).promise;
-
-    return new Promise((resolve) => {
-      canvas.toBlob(
-        (blob) => {
-          if (blob) {
-            // Create a File from the blob with the same name as the pdf
-            const originalName = file.name.replace(/\.pdf$/i, "");
-            const imageFile = new File([blob], `${originalName}.png`, {
-              type: "image/png",
-            });
-
-            resolve({
-              imageUrl: URL.createObjectURL(blob),
-              file: imageFile,
-            });
-          } else {
-            resolve({
-              imageUrl: "",
-              file: null,
-              error: "Failed to create image blob",
-            });
-          }
-        },
-        "image/png",
-        1.0,
-      ); // Set quality to maximum (1.0)
-    });
-  } catch (err) {
     return {
-      imageUrl: "",
-      file: null,
-      error: `Failed to convert PDF: ${err}`,
+      pages,
+      totalPages,
+    };
+  } catch (err) {
+    console.error("Failed to convert PDF multi-page:", err);
+    return {
+      pages: [],
+      totalPages: 0,
+      error: `Failed to convert PDF: ${err instanceof Error ? err.message : String(err)}`,
     };
   }
 }
+
+export async function convertPdfToImage(
+  file: File,
+): Promise<PdfConversionResult> {
+  const result = await convertPdfToImages(file, 1);
+  if (result.pages && result.pages.length > 0) {
+    return {
+      imageUrl: result.pages[0].imageUrl,
+      file: result.pages[0].file,
+    };
+  }
+  return {
+    imageUrl: "",
+    file: null,
+    error: result.error || "Failed to render PDF page",
+  };
+}
+
