@@ -9,8 +9,11 @@ interface Resume {
   id: string;
   companyName?: string;
   jobTitle?: string;
+  jobDescription?: string;
   imagePath: string;
+  imagePaths?: string[];
   resumePath: string;
+  createdAt?: number;
   feedback: Feedback;
 }
 
@@ -56,3 +59,16 @@ interface Feedback {
     }[];
   };
 }
+
+declare module "pdfjs-dist/build/pdf.mjs" {
+  const content: any;
+  export default content;
+  export const GlobalWorkerOptions: any;
+  export function getDocument(src: any): any;
+}
+
+declare module "pdfjs-dist/build/pdf.worker.min.mjs?url" {
+  const src: string;
+  export default src;
+}
+
